@@ -10,7 +10,7 @@ graph TD
     TG -->|Forward Content| Processor[Brain Processor AI]
     
     subgraph AI Processing
-        Processor -->|SOCKS5 Proxy| LLM[Mistral AI / OpenAI]
+        Processor --> LLM[Mistral AI / OpenAI]
         LLM -->|Classification & Data Extraction| Processor
     end
 
@@ -39,27 +39,17 @@ graph TD
   - **Read**: Daily summaries and Weekly schedule (`/week`).
   - **Write**: Natural language event creation (e.g., "Meeting tomorrow at 5pm").
 - **Interactive Tasks**: Mark Notion tasks as "Done" directly from Telegram using inline buttons.
-- **PARA Methodology**: Built-in support for Projects, Areas, Resources, and Archives.
+- **Docker Ready**: Fully containerized for easy deployment on VPS.
+- **Direct Access**: Optimized for servers with direct access to Mistral/OpenAI APIs (no proxy needed).
 
 ## 🛠️ Setup
 
 ### 1. Requirements
-- Python 3.10+
-- SSH SOCKS5 Tunnel (for Mistral/Restricted API access)
+- Docker & Docker Compose
 - Notion API Integration
 - Google Cloud Project (for Calendar API)
 
-### 2. Installation
-```bash
-# Initialize virtual environment
-python -m venv venv
-.\venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-### 3. Configuration (.env)
+### 2. Configuration (.env)
 Create a `.env` file with the following:
 ```env
 TELEGRAM_BOT_TOKEN=your_token
@@ -70,22 +60,21 @@ NOTION_PROJECTS_ID=your_id
 NOTION_RESOURCES_ID=your_id
 AI_PROVIDER=mistral # or openai
 MISTRAL_API_KEY=your_key
-SOCKS5_PROXY=socks5://127.0.0.1:1080
 SUMMARY_TIME=09:00
 ```
 
-### 4. Google Calendar Setup
+### 3. Google Calendar Setup
 1. Enable Google Calendar API in Cloud Console.
 2. Download `credentials.json` and place it in the root directory.
-3. Run the bot; it will prompt you for an authorization link on first run.
+3. Run the bot locally once to generate `token.json` via interactive login.
 
-### 4. Running the Bot
+### 4. Running the Bot (Docker)
 ```bash
-# 1. Start your SSH tunnel (if using proxy)
-ssh -D 1080 -N user@your_vps_ip
+# Build and start the container in background
+docker compose up -d --build
 
-# 2. Run the bot
-python bot.py
+# View logs
+docker compose logs -f
 ```
 
 ## 🛠️ Utilities
