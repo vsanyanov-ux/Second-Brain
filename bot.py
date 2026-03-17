@@ -230,14 +230,8 @@ class SecondBrainBot:
         await application.bot.set_my_commands(commands)
 
     def run(self):
-        proxy_url = os.getenv("SOCKS5_PROXY")
         builder = ApplicationBuilder().token(self.token).post_init(self.post_init)
         
-        if proxy_url:
-            print(f"Connecting to Telegram via proxy: {proxy_url}")
-            builder.proxy(proxy_url)
-            builder.get_updates_proxy(proxy_url)
-
         # Initialize job queue
         application = builder.build()
         job_queue = application.job_queue

@@ -12,14 +12,12 @@ load_dotenv()
 class BrainProcessor:
     def __init__(self):
         self.provider = os.getenv("AI_PROVIDER", "openai").lower()
-        self.proxy = os.getenv("SOCKS5_PROXY") # e.g. "socks5://127.0.0.1:1080"
         
         if self.provider == "openai":
             self.api_key = os.getenv("OPENAI_API_KEY")
             self.client = OpenAI(api_key=self.api_key)
         elif self.provider == "mistral":
             self.api_key = os.getenv("MISTRAL_API_KEY")
-            # Mistral client will be initialized per-request to manage proxy environment vars
             self.client = None
         else:
             self.client = None
@@ -27,8 +25,7 @@ class BrainProcessor:
     def _fetch_url_title(self, url):
         """Fetches the title of a web page."""
         try:
-            proxies = {"all://": self.proxy} if self.proxy else None
-            with httpx.Client(proxy=self.proxy, timeout=10.0, follow_redirects=True) as client:
+            with httpx.Client(timeout=10.0, follow_redirects=True) as client:
                 response = client.get(url)
                 if response.status_code == 200:
                     title_match = re.search(r"<title>(.*?)</title>", response.text, re.IGNORECASE | re.DOTALL)
@@ -102,12 +99,6 @@ class BrainProcessor:
             return json.loads(response.choices[0].message.content)
             
         elif self.provider == "mistral" and self.api_key:
-            # Apply proxy if configured
-            if self.proxy:
-                os.environ["HTTP_PROXY"] = self.proxy
-                os.environ["HTTPS_PROXY"] = self.proxy
-                os.environ["ALL_PROXY"] = self.proxy
-            
             try:
                 llm = ChatMistralAI(
                     model="mistral-large-latest",
@@ -136,12 +127,14 @@ class BrainProcessor:
                         "url": url if url else "",
                         "tags": ["mistral-fallback"]
                     }
-            finally:
-                # Clean up environment
-                if self.proxy:
-                    os.environ.pop("HTTP_PROXY", None)
-                    os.environ.pop("HTTPS_PROXY", None)
-                    os.environ.pop("ALL_PROXY", None)
+            except Exception as e:
+                print(f"Error calling Mistral: {e}")
+                return {
+                    "category": "Note",
+                    "title": text[:50] + "...",
+                    "summary": f"Mistral error: {str(e)}",
+                    "tags": ["error"]
+                }
         else:
             # Fallback for no API key or unknown providers
             return {
