@@ -18,3 +18,7 @@ temp_voice.ogg
 # IDE Settings
 .vscode/
 .idea/
+
+# Google API
+credentials.json
+token.json

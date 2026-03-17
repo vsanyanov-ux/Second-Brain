@@ -1,8 +1,11 @@
 import os
 import json
+import datetime
 from openai import OpenAI
 from langchain_mistralai import ChatMistralAI
 from dotenv import load_dotenv
+import re
+import httpx
 
 load_dotenv()
 
@@ -21,27 +24,69 @@ class BrainProcessor:
         else:
             self.client = None
 
+    def _fetch_url_title(self, url):
+        """Fetches the title of a web page."""
+        try:
+            proxies = {"all://": self.proxy} if self.proxy else None
+            with httpx.Client(proxy=self.proxy, timeout=10.0, follow_redirects=True) as client:
+                response = client.get(url)
+                if response.status_code == 200:
+                    title_match = re.search(r"<title>(.*?)</title>", response.text, re.IGNORECASE | re.DOTALL)
+                    if title_match:
+                        return title_match.group(1).strip()
+        except Exception as e:
+            print(f"Error fetching URL title: {e}")
+        return None
+
     def classify_and_process(self, text):
         """
         Classifies incoming text into: Task, Note, or Resource.
         Returns a dictionary with classification, title, summary, and tags.
         """
+        # Search for URL in text
+        url_match = re.search(r'(https?://\S+)', text)
+        url = url_match.group(0) if url_match else None
+        real_title = self._fetch_url_title(url) if url else None
+
+        context_info = ""
+        if real_title:
+            context_info = f"\nContextual Title from Link: {real_title}"
+
         prompt = f"""
         Analyze the following input for a 'Second Brain' system:
         "{text}"
+        {context_info}
         
         Classify it into one of these categories:
         1. Task: Something that needs to be done.
         2. Note: A thought, idea, or information to remember.
         3. Resource: A link, book, or reference material.
+        4. Event: A meeting, appointment, or event with a specific date/time.
         
-        Provide the output in the following JSON format:
+        Rules for Extraction:
+        - **URL**: Extract the exact URL and put it in the "url" field.
+        - **Title**: 
+          - Use the 'Contextual Title from Link' if provided to make the title precise.
+          - If it's a YouTube link, ensure the title reflects the specific video content.
+          - Do NOT use generic prefixes like "YouTube Video:" or "Link:".
+          - Do NOT use "Second Brain" as the title.
+        - **Summary**: A concise 1-sentence summary of the content.
+        - **Date/Time** (for Events): 
+          - Current local time is: {datetime.datetime.now().isoformat()}
+          - Extract start_time in ISO 8601 format (e.g. YYYY-MM-DDTHH:MM:SS).
+          - If the year is not specified, assume current year.
+          - If time is not specified for an event, assume 12:00 PM.
+        
+        Provide the output as JSON:
         {{
-            "category": "Task|Note|Resource",
-            "title": "A short, descriptive title",
-            "summary": "A 1-sentence summary",
-            "tags": ["tag1", "tag2"],
-            "priority": "High|Medium|Low" (if Task)
+            "category": "Task|Note|Resource|Event",
+            "title": "Precise Title",
+            "summary": "Concise summary",
+            "url": "full_url_here",
+            "tags": ["relevant", "tags"],
+            "priority": "High|Medium|Low",
+            "start_time": "ISO_DATETIME_HERE",
+            "end_time": "ISO_DATETIME_HERE"
         }}
         """
         
@@ -86,8 +131,9 @@ class BrainProcessor:
                     # Fallback to simple structure
                     return {
                         "category": "Note",
-                        "title": text[:50],
+                        "title": real_title if real_title else text[:50],
                         "summary": content[:200],
+                        "url": url if url else "",
                         "tags": ["mistral-fallback"]
                     }
             finally:
