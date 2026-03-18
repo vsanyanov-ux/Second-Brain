@@ -79,7 +79,8 @@ class SecondBrainBot:
                 for status, t_list in grouped_tasks.items():
                     summary_lines.append(f"📌 *{status}*:")
                     for t in t_list:
-                        summary_lines.append(f"  🔹 {t['title']}")
+                        next_action_info = f" (🎯 {t['next_action']})" if t.get('next_action') else ""
+                        summary_lines.append(f"  🔹 {t['title']}{next_action_info}")
                         # Add a button for each active task (limit to avoid too big keyboard)
                         if len(keyboard) < 8: 
                             keyboard.append([InlineKeyboardButton(f"✅ {t['title'][:20]}...", callback_data=f"done_{t['id']}")])
