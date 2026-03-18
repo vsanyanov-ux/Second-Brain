@@ -1,46 +1,42 @@
-# AI Second Brain System (Telegram + Notion + Google Calendar)
+# AI Second Brain 2026 (Telegram + Notion + Google Calendar)
 
-An automated system to capture, classify, and route information from Telegram messages (text, voice, links) into structured Notion databases and Google Calendar using AI (Mistral/OpenAI).
+An advanced automated system to capture, classify, and route information from Telegram into structured Notion databases and Google Calendar. Built on the **Active AI Cycle** principles from the "Second Brain 2026" guide.
 
-## 🧠 System Architecture
+## 🧠 System Architecture (Second Brain 2026)
 
 ```mermaid
 graph TD
     User((User)) -->|Text / Link / Voice| TG[Telegram Bot]
     TG -->|Forward Content| Processor[Brain Processor AI]
     
-    subgraph AI Processing
+    subgraph Active AI Cycle
         Processor --> LLM[Mistral AI / OpenAI]
-        LLM -->|Classification & Data Extraction| Processor
+        LLM -->|Confidence Scoring| Processor
+        Processor -->|If confidence < 70%| Bouncer[The Bouncer]
+        Bouncer -->|Ask for Category| TG
     end
 
-    Processor -->|Task/Note/Resource| NotionRouter{Notion Router}
-    Processor -->|Event| CalendarRouter{Calendar Router}
+    Processor -->|High Confidence Classification| NotionRouter{Notion Router}
     
-    NotionRouter -->|Task| Projects[(Notion Projects)]
+    NotionRouter -->|Project| Projects[(Notion Projects)]
     NotionRouter -->|Resource| Resources[(Notion Resources)]
-    NotionRouter -->|Note| Inbox[(Notion Inbox)]
+    NotionRouter -->|Idea| Inbox[(Notion Inbox)]
     
-    CalendarRouter -->|Add Event| GCal[(Google Calendar)]
-    
-    GCal -.->|Daily/Weekly Summary| TG
-    Projects -.->|Daily Summary| TG
-    
-    TG -->|Confirmation / Links| User
-    User -->|Interactive Buttons| TG
-    TG -->|Update Status| Projects
+    TG -->|Confirmation + Fix Button| User
+    User -->|Fix Category| TG
+    TG -->|Update Notion| NotionRouter
 ```
 
-## 🚀 Features
+## 🚀 Key Features (Active AI Cycle)
 
-- **Multi-modal Capture**: Supports text, voice messages (Whisper transcription), and web links.
-- **AI Classification**: Automatically sorts inputs into PARA-style categories (Projects, Resources, Inbox) or Calendar Events.
-- **Google Calendar Integration**:
-  - **Read**: Daily summaries and Weekly schedule (`/week`).
-  - **Write**: Natural language event creation (e.g., "Meeting tomorrow at 5pm").
-- **Interactive Tasks**: Mark Notion tasks as "Done" directly from Telegram using inline buttons.
-- **Docker Ready**: Fully containerized for easy deployment on VPS.
-- **Direct Access**: Optimized for servers with direct access to Mistral/OpenAI APIs (no proxy needed).
+- **The Bouncer (Confidence Filter)**: AI evaluates its own certainty. If unsure, it stops and asks you for clarification instead of creating messy data.
+- **The Fix Button (Instant Correction)**: Every saved item includes an interactive button to instantly re-categorize if the AI made a mistake.
+- **Advanced Scraping**: Link inputs trigger a full-page scrape (via `httpx` and `bs4`) to provide a semantic summary in Notion.
+- **Next Action Sync**: Automatically extracts "Next Action" for projects and syncs it to a dedicated Notion database property.
+- **To-Do Dashboard**: Built-in `/todo` command to view all active tasks and their next actions directly in Telegram.
+- **The Receipt (Audit Logs)**: Local `audit_log.json` records all AI decisions for transparency and debugging without third-party tools.
+- **Multi-modal Capture**: Supports text, voice messages (Whisper), and web links.
+- **Docker Ready**: Fully containerized for VPS deployment.
 
 ## 🛠️ Setup
 

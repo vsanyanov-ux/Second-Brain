@@ -78,18 +78,20 @@ class BrainProcessor:
         
         Classify it into one of these categories:
         1. Project: A concrete objective with a next step (Tasks belong here).
-        2. Idea: A thought, insight, or interesting reference/link to save for later.
-        3. Person: Information about someone (contact info, context of meeting).
-        4. Admin: Bureaucracy, payments, logistics, or non-creative maintenance tasks.
-        5. Event: A meeting or appointment with a specific date/time.
+        2. Idea: A substantial thought, insight, or interesting reference to save. NO greetings or generic chat.
+        3. Person: Information about someone.
+        4. Admin: Logistics, bureaucratic chores, or payments.
+        5. Event: Meetings/appointments with date/time.
         
-        Rules for Extraction:
+        CRITICAL RULES:
+        - **Casual Greeting/Chat**: If the input is just a greeting (Hi, Hello, Привет), or generic talk without any actionable info or save-worthy insight, you MUST set **confidence to 0.3** and category to "Idea".
+        - **Vague Input**: If the input is very short and lacks context (e.g., "blue", "tomorrow"), set **confidence < 0.5**.
         - **Confidence**: Rate your confidence in this classification from 0.0 to 1.0.
         - **Title**: Create a precise, punchy title.
-        - **Summary**: A concise 1-sentence summary of the core essence.
-        - **Next Action** (For Projects/Admin): What is the single literal next step?
-        - **Context** (For People): How do we know them? What to discuss next?
-        - **URL**: Extract the exact URL if present.
+        - **Summary**: A concise 1-sentence summary.
+        - **Next Action** (For Projects/Admin): Single literal next step.
+        - **Context** (For People): How do we know them?
+        - **URL**: Extract exact URL if present.
         - **Date/Time** (for Events): 
           - Current local time is: {datetime.datetime.now().isoformat()}
           - Extract start_time in ISO 8601 format.

@@ -158,6 +158,30 @@ class SecondBrainBot:
             logging.error(f"Error in weekly schedule: {e}")
             await update.message.reply_text(f"❌ Ошибка при получении расписания: {e}")
 
+    async def todo_list(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Fetches and sends all active tasks with their next actions."""
+        status_msg = await update.message.reply_text("📋 Fetching your To-Do list...")
+        try:
+            tasks = self.notion.get_active_tasks()
+            if not tasks:
+                await status_msg.edit_text("✅ No active tasks found in Notion!")
+                return
+
+            lines = ["📋 **Your Active Tasks**:\n"]
+            for t in tasks:
+                line = f"🔹 **{t['title']}** ({t['status']})"
+                # Try to get next action if we have it in the task data
+                # We might need to update notion_api.py to fetch more fields
+                next_action = t.get("next_action")
+                if next_action:
+                    line += f"\n   🎯 _Next_: {next_action}"
+                lines.append(line)
+            
+            await status_msg.edit_text("\n".join(lines), parse_mode="Markdown")
+        except Exception as e:
+            logging.error(f"Error in todo_list: {e}")
+            await status_msg.edit_text(f"❌ Error fetching tasks: {e}")
+
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = update.message.text
         if not text:
@@ -308,6 +332,7 @@ class SecondBrainBot:
         from telegram import BotCommand
         commands = [
             BotCommand("summary", "Сводка задач и событий на сегодня"),
+            BotCommand("todo", "Список всех задач и следующих шагов"),
             BotCommand("week", "Расписание на неделю")
         ]
         await application.bot.set_my_commands(commands)
@@ -329,6 +354,7 @@ class SecondBrainBot:
         
         # Handlers
         application.add_handler(CommandHandler("summary", self.manual_summary)) 
+        application.add_handler(CommandHandler("todo", self.todo_list))
         application.add_handler(CommandHandler("week", self.week_schedule))
         application.add_handler(CallbackQueryHandler(self.complete_task, pattern="^done_"))
         application.add_handler(CallbackQueryHandler(self.fix_callback, pattern="^(fix_|move_|ignore)"))

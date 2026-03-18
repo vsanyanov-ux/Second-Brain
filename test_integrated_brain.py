@@ -5,6 +5,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def test_ai_logic():
+    import sys
+    # Force UTF-8 for console output
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+        
     bp = BrainProcessor()
     
     # Test cases from the 2026 guide
@@ -12,7 +17,9 @@ def test_ai_logic():
         "Meet with Sergey about the contract tomorrow at 5pm",
         "How to build a garden fence https://www.thespruce.com/build-your-own-fence-1824707",
         "Buy a new laptop next week",
-        "I met Elena today, she is a designer from Berlin"
+        "I met Elena today, she is a designer from Berlin",
+        "Привет",
+        "синий"
     ]
     
     print("--- Testing Integrated AI Logic ---")

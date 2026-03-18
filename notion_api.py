@@ -46,10 +46,18 @@ class NotionIntegrator:
                 title = name_prop[0].get("text", {}).get("content", "No Title")
             
             status = properties.get("Status", {}).get("status", {}).get("name", "Unknown")
+            
+            # Retrieve 'Next Action' property
+            next_action = ""
+            next_action_prop = properties.get("Next Action", {}).get("rich_text", [])
+            if next_action_prop:
+                next_action = next_action_prop[0].get("text", {}).get("content", "")
+            
             tasks.append({
                 "id": page.get("id"),
                 "title": title, 
-                "status": status
+                "status": status,
+                "next_action": next_action
             })
             
         return tasks
@@ -122,7 +130,15 @@ class NotionIntegrator:
             })
 
         # Specific mappings based on database schema
-        if database_id == self.inbox_id: # Ideas Database (Inbox)
+        if database_id == self.projects_id: # Projects Database
+            properties["Status"] = {"status": {"name": "Not started"}}
+            if next_action:
+                properties["Next Action"] = {"rich_text": [{"text": {"content": next_action}}]}
+                # Optionally remove from page text if it's in the property
+                if f"🎯 **Next Action**: {next_action}" in content_parts:
+                    content_parts.remove(f"🎯 **Next Action**: {next_action}")
+
+        elif database_id == self.inbox_id: # Ideas Database (Inbox)
             # Use 'Text' property if it exists, or just rely on page content
             properties["Text"] = {"rich_text": [{"text": {"content": summary}}]}
             if data.get("tags"):
@@ -130,11 +146,6 @@ class NotionIntegrator:
             if url:
                 # Assuming 'URL' property exists in the Inbox database
                 properties["URL"] = {"url": url}
-        
-        elif database_id == self.projects_id: # Projects Database
-            properties["Status"] = {"status": {"name": "Not started"}}
-            # If the database has a 'Next Action' property, we could map it here
-            # For now, it's in the page children.
 
         elif database_id == self.resources_id: # Areas/Resources
             if category == "Person":
