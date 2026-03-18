@@ -1,6 +1,7 @@
 import os
 import logging
 import asyncio
+import datetime
 from datetime import time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, CommandHandler, CallbackQueryHandler, filters
@@ -158,56 +159,138 @@ class SecondBrainBot:
             await update.message.reply_text(f"❌ Ошибка при получении расписания: {e}")
 
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        # (Same implementation as before, but keeping it inside the class)
         text = update.message.text
         if not text:
             return
 
-        status_msg = await update.message.reply_text("🧠 Thinking...")
+        status_msg = await update.message.reply_text("🧠 Analyzing...")
         
         try:
             data = self.brain.classify_and_process(text)
             logging.info(f"AI Classification: {data}")
             
-            category = data.get("category", "Note")
-            result = None
+            # The Receipt (Audit Log)
+            self._log_transaction(text, data)
             
-            try:
-                if category == "Task":
-                    result = self.notion.add_to_projects(data)
-                    folder = "Projects/Tasks"
-                elif category == "Resource":
-                    result = self.notion.add_to_resources(data)
-                    folder = "Resources"
-                elif category == "Event":
-                    result = self.calendar.add_event(
-                        summary=data.get("title"),
-                        start_time=data.get("start_time"),
-                        end_time=data.get("end_time"),
-                        description=data.get("summary")
-                    )
-                    folder = "Google Calendar"
-                else:
-                    result = self.notion.add_to_inbox(data)
-                    folder = "Inbox"
-            except Exception as e:
-                logging.error(f"Notion Error: {e}")
-                await status_msg.edit_text(f"❌ Notion Error: {e}\n(Category: {category})")
-                return
-
-            if result:
-                notion_url = result.get("url", "#")
-                await status_msg.edit_text(
-                    f"✅ Saved as **{category}** in **{folder}**\n"
-                    f"📌 Title: {data.get('title')}\n"
-                    f"🔗 [View in Notion]({notion_url})",
+            # The Bouncer (Confidence Filter)
+            confidence = data.get("confidence", 1.0)
+            if confidence < 0.7:
+                await status_msg.delete()
+                keyboard = [
+                    [InlineKeyboardButton("Project", callback_data=f"fix_Project_{text[:30]}"),
+                     InlineKeyboardButton("Idea", callback_data=f"fix_Idea_{text[:30]}")],
+                    [InlineKeyboardButton("Person", callback_data=f"fix_Person_{text[:30]}"),
+                     InlineKeyboardButton("Admin", callback_data=f"fix_Admin_{text[:30]}")],
+                    [InlineKeyboardButton("Ignore", callback_data="ignore")]
+                ]
+                await update.message.reply_text(
+                    f"🤔 I'm not entirely sure (Confidence: {confidence:.2f}).\n"
+                    f"AI suggests: **{data.get('category')}**\n"
+                    f"What is this?",
+                    reply_markup=InlineKeyboardMarkup(keyboard),
                     parse_mode="Markdown"
                 )
-            else:
-                await status_msg.edit_text(f"❌ Error saving to Notion.")
+                return
+
+            await self._save_and_respond(update, status_msg, data)
+            
         except Exception as e:
             logging.error(f"General Error: {e}")
             await status_msg.edit_text(f"❌ An error occurred: {e}")
+
+    async def _save_and_respond(self, update, status_msg, data):
+        """Helper to save to Notion/Calendar and send confirmation."""
+        category = data.get("category", "Idea")
+        result = None
+        
+        try:
+            if category == "Project":
+                result = self.notion.add_to_projects(data)
+                folder = "Projects"
+            elif category == "Person":
+                result = self.notion.add_to_resources(data)
+                folder = "People/Resources"
+            elif category == "Admin":
+                result = self.notion.add_to_projects(data) # Mapping Admin to Projects for now
+                folder = "Admin/Projects"
+            elif category == "Event":
+                result = self.calendar.add_event(
+                    summary=data.get("title"),
+                    start_time=data.get("start_time"),
+                    end_time=data.get("end_time"),
+                    description=data.get("summary")
+                )
+                folder = "Google Calendar"
+            else: # Idea
+                result = self.notion.add_to_inbox(data)
+                folder = "Inbox/Ideas"
+        except Exception as e:
+            logging.error(f"Notion/Calendar Error: {e}")
+            await status_msg.edit_text(f"❌ Error: {e}\n(Category: {category})")
+            return
+
+        if result:
+            notion_url = result.get("url", "#")
+            # The Fix Button (via buttons)
+            keyboard = [[InlineKeyboardButton("🔄 Change Category", callback_data=f"fix_prompt_{result.get('id')}")]]
+            await status_msg.edit_text(
+                f"✅ Saved as **{category}** in **{folder}**\n"
+                f"📌 Title: {data.get('title')}\n"
+                f"🔗 [View in Notion]({notion_url})",
+                parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        else:
+            await status_msg.edit_text(f"❌ Error saving content.")
+
+    def _log_transaction(self, text, data):
+        """The Receipt: Log everything to audit_log.json."""
+        log_entry = {
+            "timestamp": datetime.datetime.now().isoformat(),
+            "input": text,
+            "decision": data
+        }
+        try:
+            import json
+            logs = []
+            if os.path.exists("audit_log.json"):
+                with open("audit_log.json", "r", encoding="utf-8") as f:
+                    logs = json.load(f)
+            if isinstance(logs, list):
+                logs.append(log_entry)
+                logs = logs[-100:]
+            else:
+                logs = [log_entry]
+            with open("audit_log.json", "w", encoding="utf-8") as f:
+                json.dump(logs, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logging.error(f"Logging error: {e}")
+
+    async def fix_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """The Fix Button: Handler for correction callbacks."""
+        query = update.callback_query
+        await query.answer()
+        
+        if query.data == "ignore":
+            await query.edit_message_text("👌 Ignored.")
+            return
+
+        if query.data.startswith("fix_prompt_"):
+            page_id = query.data.replace("fix_prompt_", "")
+            keyboard = [
+                [InlineKeyboardButton("Project", callback_data=f"move_{page_id}_Project"),
+                 InlineKeyboardButton("Idea", callback_data=f"move_{page_id}_Idea")],
+                [InlineKeyboardButton("Person", callback_data=f"move_{page_id}_Person"),
+                 InlineKeyboardButton("Admin", callback_data=f"move_{page_id}_Admin")]
+            ]
+            await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+            return
+
+        if query.data.startswith("move_"):
+            _, page_id, new_cat = query.data.split("_")
+            # Logic to move would be complex, for now we just update a tag/status if possible
+            # Or just send a confirmation that it's a feature to be implemented.
+            await query.edit_message_text(f"🔄 Request to move to **{new_cat}** received (Implementation in progress).", parse_mode="Markdown")
 
     async def handle_voice(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🎙️ Transcribing voice...")
@@ -248,6 +331,7 @@ class SecondBrainBot:
         application.add_handler(CommandHandler("summary", self.manual_summary)) 
         application.add_handler(CommandHandler("week", self.week_schedule))
         application.add_handler(CallbackQueryHandler(self.complete_task, pattern="^done_"))
+        application.add_handler(CallbackQueryHandler(self.fix_callback, pattern="^(fix_|move_|ignore)"))
         application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.handle_message))
         application.add_handler(MessageHandler(filters.VOICE, self.handle_voice))
         

@@ -64,7 +64,7 @@ class NotionIntegrator:
         )
 
     def add_to_inbox(self, data):
-        """Specifically for Notes/Inbox."""
+        """Specifically for Ideas/Inbox."""
         return self._create_page(self.inbox_id, data)
 
     def add_to_projects(self, data):
@@ -72,7 +72,7 @@ class NotionIntegrator:
         return self._create_page(self.projects_id, data)
 
     def add_to_resources(self, data):
-        """Specifically for Resources."""
+        """Specifically for Resources or People."""
         return self._create_page(self.resources_id, data)
 
     def _create_page(self, database_id, data):
@@ -80,20 +80,26 @@ class NotionIntegrator:
             print(f"Warning: Database ID for {data.get('category')} is missing.")
             return None
 
-        category = data.get("category", "Note")
+        category = data.get("category", "Idea")
         url = data.get("url")
+        summary = data.get("summary", "")
+        next_action = data.get("next_action", "")
+        context = data.get("context", "")
         
         # Base properties common to all
-        properties = {
+        properties: dict = {
             "Name": {"title": [{"text": {"content": data.get("title", "No Title")}}]}
         }
 
-        # Add URL property ONLY if it exists in the database schema (we know Notes has it)
-        if url and database_id == self.inbox_id:
-            properties["URL"] = {"url": url}
-        
         # Page content (blocks)
         children = []
+        
+        # Add summary/next action/context to page content for visibility
+        content_parts = []
+        if summary: content_parts.append(f"📝 {summary}")
+        if next_action: content_parts.append(f"🎯 **Next Action**: {next_action}")
+        if context: content_parts.append(f"👥 **Context**: {context}")
+        
         if url:
             children.append({
                 "object": "block",
@@ -105,26 +111,36 @@ class NotionIntegrator:
                     ]
                 }
             })
-            if data.get("summary"):
-                children.append({
-                    "object": "block",
-                    "type": "paragraph",
-                    "paragraph": {
-                        "rich_text": [{"type": "text", "text": {"content": f"📝 {data.get('summary')}"}}]
-                    }
-                })
+
+        for part in content_parts:
+            children.append({
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{"type": "text", "text": {"content": part}}]
+                }
+            })
 
         # Specific mappings based on database schema
-        if database_id == self.inbox_id: # Notes Database (Inbox)
-            properties["Text"] = {"rich_text": [{"text": {"content": data.get("summary", "")}}]}
+        if database_id == self.inbox_id: # Ideas Database (Inbox)
+            # Use 'Text' property if it exists, or just rely on page content
+            properties["Text"] = {"rich_text": [{"text": {"content": summary}}]}
             if data.get("tags"):
                 properties["Tags"] = {"multi_select": [{"name": tag} for tag in data.get("tags")]}
+            if url:
+                # Assuming 'URL' property exists in the Inbox database
+                properties["URL"] = {"url": url}
         
         elif database_id == self.projects_id: # Projects Database
             properties["Status"] = {"status": {"name": "Not started"}}
+            # If the database has a 'Next Action' property, we could map it here
+            # For now, it's in the page children.
 
         elif database_id == self.resources_id: # Areas/Resources
-            properties["Type"] = {"status": {"name": "Resource"}}
+            if category == "Person":
+                properties["Type"] = {"status": {"name": "Person"}}
+            else:
+                properties["Type"] = {"status": {"name": "Resource"}}
 
         return self.notion.pages.create(
             parent={"database_id": database_id},
