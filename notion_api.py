@@ -84,9 +84,10 @@ class NotionIntegrator:
         return self._create_page(self.resources_id, data)
 
     def _create_page(self, database_id, data):
-        if not database_id or database_id == "your_id_here":
-            print(f"Warning: Database ID for {data.get('category')} is missing.")
-            return None
+        if not database_id or database_id == "your_id_here" or len(database_id) < 10:
+            error_msg = f"Database ID for {data.get('category')} is missing or invalid in .env"
+            logging.error(error_msg)
+            raise ValueError(error_msg)
 
         category = data.get("category", "Idea")
         url = data.get("url")

@@ -13,12 +13,30 @@ load_dotenv()
 class BrainProcessor:
     def __init__(self):
         self.provider = os.getenv("AI_PROVIDER", "openai").lower()
+        self.proxy = os.getenv("SOCKS5_PROXY")
         
         if self.provider == "openai":
             self.api_key = os.getenv("OPENAI_API_KEY")
-            self.client = OpenAI(api_key=self.api_key)
+            # Setup OpenAI with Proxy if available
+            if self.proxy:
+                try:
+                    import httpx
+                    # Set timeout for the http_client itself
+                    http_client = httpx.Client(proxy=self.proxy, timeout=20.0)
+                    self.client = OpenAI(api_key=self.api_key, http_client=http_client, timeout=20.0)
+                    print(f"DEBUG: OpenAI initialized with proxy {self.proxy} (Timeout: 20s)")
+                except Exception as e:
+                    print(f"DEBUG: Failed to setup OpenAI proxy: {e}")
+                    self.client = OpenAI(api_key=self.api_key, timeout=20.0)
+            else:
+                self.client = OpenAI(api_key=self.api_key, timeout=20.0)
         elif self.provider == "mistral":
             self.api_key = os.getenv("MISTRAL_API_KEY")
+            # Proxy for Mistral via environment variables
+            if self.proxy:
+                os.environ["HTTP_PROXY"] = self.proxy
+                os.environ["HTTPS_PROXY"] = self.proxy
+                print(f"DEBUG: Mistral proxy set to {self.proxy}")
             self.client = None
         else:
             self.client = None
@@ -93,8 +111,10 @@ class BrainProcessor:
         - **Context** (For People): How do we know them?
         - **URL**: Extract exact URL if present.
         - **Date/Time** (for Events): 
-          - Current local time is: {datetime.datetime.now().isoformat()}
-          - Extract start_time in ISO 8601 format.
+          - Today's date and time: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+          - Extract start_time in ISO 8601 format (e.g., 2024-03-25T15:00:00).
+          - Be very careful with relative dates like "tomorrow" or "next Friday".
+          - If only time is mentioned, assume it's for today.
         
         Provide the output as JSON:
         {{
@@ -125,7 +145,14 @@ class BrainProcessor:
             
         elif self.provider == "mistral" and self.api_key:
             try:
-                llm = ChatMistralAI(model="mistral-large-latest", temperature=0, mistral_api_key=self.api_key)
+                # Add timeout and limit retries to fail fast if proxy is down
+                llm = ChatMistralAI(
+                    model="mistral-large-latest", 
+                    temperature=0, 
+                    mistral_api_key=self.api_key,
+                    max_retries=1,
+                    timeout=20
+                )
                 response = llm.invoke(prompt)
                 content = response.content
                 

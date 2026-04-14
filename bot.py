@@ -250,8 +250,8 @@ class SecondBrainBot:
                 result = self.notion.add_to_inbox(data)
                 folder = "Inbox/Ideas"
         except Exception as e:
-            logging.error(f"Notion/Calendar Error: {e}")
-            await status_msg.edit_text(f"❌ Error: {e}\n(Category: {category})")
+            logging.error(f"Notion/Calendar Error: {e}", exc_info=True)
+            await status_msg.edit_text(f"❌ Error saving to **{folder}**:\n`{str(e)[:200]}`", parse_mode="Markdown")
             return
 
         if result:
@@ -266,7 +266,7 @@ class SecondBrainBot:
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         else:
-            await status_msg.edit_text(f"❌ Error saving content.")
+            await status_msg.edit_text(f"❌ Unexpected Error: Saving to **{folder}** returned no result.", parse_mode="Markdown")
 
     def _log_transaction(self, text, data):
         """The Receipt: Log everything to audit_log.json."""
